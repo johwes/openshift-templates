@@ -1,0 +1,440 @@
+{
+  "kind": "Template",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "wordpress-mysql-ephemeral",
+    "annotations": {
+      "description": "A wordpress PHP application with a MySQL database",
+      "tags": "instant-app,php,wordpress,mysql",
+      "iconClass": "icon-php"
+    }
+  },
+  "labels": {
+    "template": "wordpress-mysql"
+  },
+  "objects": [
+    {
+      "kind": "Service",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "wordpress-mysql",
+        "annotations": {
+          "description": "Exposes and load balances the application pods"
+        }
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "web",
+            "port": 8080,
+            "targetPort": 8080
+          }
+        ],
+        "selector": {
+          "name": "wordpress-mysql"
+        }
+      }
+    },
+    {
+      "kind": "Route",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "wordpress-mysql"
+      },
+      "spec": {
+        "host": "${APPLICATION_DOMAIN}",
+        "to": {
+          "kind": "Service",
+          "name": "wordpress-mysql"
+        }
+      }
+    },
+    {
+      "kind": "ImageStream",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "wordpress-mysql",
+        "annotations": {
+          "description": "Keeps track of changes in the application image"
+        }
+      }
+    },
+    {
+      "kind": "BuildConfig",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "wordpress-mysql",
+        "annotations": {
+          "description": "Defines how to build the application"
+        }
+      },
+      "spec": {
+        "source": {
+          "type": "Git",
+          "git": {
+            "uri": "${SOURCE_REPOSITORY_URL}",
+            "ref": "${SOURCE_REPOSITORY_REF}"
+          },
+          "contextDir": "${CONTEXT_DIR}"
+        },
+        "strategy": {
+          "type": "Source",
+          "sourceStrategy": {
+            "from": {
+              "kind": "ImageStreamTag",
+              "namespace": "openshift",
+              "name": "php:5.6"
+            }
+          }
+        },
+        "output": {
+          "to": {
+            "kind": "ImageStreamTag",
+            "name": "wordpress-mysql:latest"
+          }
+        },
+        "triggers": [
+          {
+            "type": "ImageChange"
+          },
+          {
+            "type": "ConfigChange"
+          },
+          {
+            "type": "GitHub",
+            "github": {
+              "secret": "${GITHUB_WEBHOOK_SECRET}"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "DeploymentConfig",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "wordpress-mysql",
+        "annotations": {
+          "description": "Defines how to deploy the application server"
+        }
+      },
+      "spec": {
+        "strategy": {
+          "type": "Rolling",
+          "recreateParams": {
+          }
+        },
+        "triggers": [
+          {
+            "type": "ImageChange",
+            "imageChangeParams": {
+              "automatic": true,
+              "containerNames": [
+                "wordpress-mysql"
+              ],
+              "from": {
+                "kind": "ImageStreamTag",
+                "name": "wordpress-mysql:latest"
+              }
+            }
+          },
+          {
+            "type": "ConfigChange"
+          }
+        ],
+        "replicas": 1,
+        "selector": {
+          "name": "wordpress-mysql"
+        },
+        "template": {
+          "metadata": {
+            "name": "wordpress-mysql",
+            "labels": {
+              "name": "wordpress-mysql"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "wordpress-mysql",
+                "image": "wordpress-mysql",
+                "ports": [
+                  {
+                    "containerPort": 8080
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "DATABASE_SERVICE_NAME",
+                    "value": "${DATABASE_SERVICE_NAME}"
+                  },
+                  {
+                    "name": "DATABASE_ENGINE",
+                    "value": "${DATABASE_ENGINE}"
+                  },
+                  {
+                    "name": "DATABASE_NAME",
+                    "value": "${DATABASE_NAME}"
+                  },
+                  {
+                    "name": "DATABASE_USER",
+                    "value": "${DATABASE_USER}"
+                  },
+                  {
+                    "name": "DATABASE_PASSWORD",
+                    "value": "${DATABASE_PASSWORD}"
+                  },
+                  {
+                    "name": "WORDPRESS_AUTH_KEY",
+                    "value": "${WORDPRESS_AUTH_KEY}"
+                  },
+                  {
+                    "name": "WORDPRESS_SECURE_AUTH_KEY",
+                    "value": "${WORDPRESS_SECURE_AUTH_KEY}"
+                  },
+                  {
+                    "name": "WORDPRESS_LOGGED_IN_KEY",
+                    "value": "${WORDPRESS_LOGGED_IN_KEY}"
+                  },
+                  {
+                    "name": "WORDPRESS_NONCE_KEY",
+                    "value": "${WORDPRESS_NONCE_KEY}"
+                  },
+                  {
+                    "name": "WORDPRESS_AUTH_SALT",
+                    "value": "${WORDPRESS_AUTH_SALT}"
+                  },
+                  {
+                    "name": "WORDPRESS_SECURE_AUTH_SALT",
+                    "value": "${WORDPRESS_SECURE_AUTH_SALT}"
+                  },
+                  {
+                    "name": "WORDPRESS_LOGGED_IN_SALT",
+                    "value": "${WORDPRESS_LOGGED_IN_SALT}"
+                  },
+                  {
+                    "name": "WORDPRESS_NONCE_SALT",
+                    "value": "${WORDPRESS_NONCE_SALT}"
+                  },
+                  {
+                    "name": "WORDPRESS_DATABASE_TABLE_PREFIX",
+                    "value": "${WORDPRESS_DATABASE_TABLE_PREFIX}"
+                  },
+                  {
+                    "name": "OPCACHE_REVALIDATE_FREQ",
+                    "value": "${OPCACHE_REVALIDATE_FREQ}"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "kind": "Service",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${DATABASE_SERVICE_NAME}",
+        "annotations": {
+          "description": "Exposes the database server"
+        }
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "mysql",
+            "port": 3306,
+            "targetPort": 3306
+          }
+        ],
+        "selector": {
+          "name": "${DATABASE_SERVICE_NAME}"
+        }
+      }
+    },
+    {
+      "kind": "DeploymentConfig",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${DATABASE_SERVICE_NAME}",
+        "annotations": {
+          "description": "Defines how to deploy the database"
+        }
+      },
+      "spec": {
+        "strategy": {
+          "type": "Recreate"
+        },
+        "triggers": [
+          {
+            "type": "ImageChange",
+            "imageChangeParams": {
+              "automatic": false,
+              "containerNames": [
+                "mysql"
+              ],
+              "from": {
+                "kind": "ImageStreamTag",
+                "namespace": "openshift",
+                "name": "mysql:5.6"
+              }
+            }
+          },
+          {
+            "type": "ConfigChange"
+          }
+        ],
+        "replicas": 1,
+        "selector": {
+          "name": "${DATABASE_SERVICE_NAME}"
+        },
+        "template": {
+          "metadata": {
+            "name": "${DATABASE_SERVICE_NAME}",
+            "labels": {
+              "name": "${DATABASE_SERVICE_NAME}"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "name": "mysql",
+                "image": "mysql",
+                "ports": [
+                  {
+                    "containerPort": 3306
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "MYSQL_USER",
+                    "value": "${DATABASE_USER}"
+                  },
+                  {
+                    "name": "MYSQL_PASSWORD",
+                    "value": "${DATABASE_PASSWORD}"
+                  },
+                  {
+                    "name": "MYSQL_DATABASE",
+                    "value": "${DATABASE_NAME}"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "parameters": [
+    {
+      "name": "SOURCE_REPOSITORY_URL",
+      "description": "The URL of the repository with your application source code",
+      "value": "https://github.com/WordPress/WordPress.git"
+    },
+    {
+      "name": "SOURCE_REPOSITORY_REF",
+      "description": "Set this to a branch name, tag or other ref of your repository if you are not using the default branch"
+    },
+    {
+      "name": "CONTEXT_DIR",
+      "description": "Set this to the relative path to your project if it is not in the root of your repository"
+    },
+    {
+      "name": "APPLICATION_DOMAIN",
+      "description": "The exposed hostname that will route to the CakePHP service, if left blank a value will be defaulted.",
+      "value": ""
+    },
+    {
+      "name": "GITHUB_WEBHOOK_SECRET",
+      "description": "A secret string used to configure the GitHub webhook",
+      "generate": "expression",
+      "from": "[a-zA-Z0-9]{40}"
+    },
+    {
+      "name": "DATABASE_SERVICE_NAME",
+      "description": "Database service name",
+      "value": "mysql"
+    },
+    {
+      "name": "DATABASE_ENGINE",
+      "description": "Database engine: postgresql, mysql or sqlite (default)",
+      "value": "mysql"
+    },
+    {
+      "name": "DATABASE_NAME",
+      "description": "Database name",
+      "value": "wordpress"
+    },
+    {
+      "name": "DATABASE_USER",
+      "description": "Database user name",
+      "value": "wordpress"
+    },
+    {
+      "name": "DATABASE_PASSWORD",
+      "description": "Database user password",
+      "generate": "expression",
+      "from": "[a-zA-Z0-9]{16}"
+    },
+    {
+      "name": "WORDPRESS_AUTH_KEY",
+      "description": "A secret string used to configure Wordpress Authentication Unique Keys and Salts",
+      "generate": "expression",
+      "from": "[a-zA-Z0-9]{40}"
+    },
+    {
+      "name": "WORDPRESS_SECURE_AUTH_KEY",
+      "description": "A secret string used to configure Wordpress Authentication Unique Keys and Salts",
+      "generate": "expression",
+      "from": "[a-zA-Z0-9]{40}"
+    },
+    {
+      "name": "WORDPRESS_LOGGED_IN_KEY",
+      "description": "A secret string used to configure Wordpress Authentication Unique Keys and Salts",
+      "generate": "expression",
+      "from": "[a-zA-Z0-9]{40}"
+    },
+    {
+      "name": "WORDPRESS_NONCE_KEY",
+      "description": "A secret string used to configure Wordpress Authentication Unique Keys and Salts",
+      "generate": "expression",
+      "from": "[a-zA-Z0-9]{40}"
+    },
+    {
+      "name": "WORDPRESS_AUTH_SALT",
+      "description": "A secret string used to configure Wordpress Authentication Unique Keys and Salts",
+      "generate": "expression",
+      "from": "[a-zA-Z0-9]{40}"
+    },
+    {
+      "name": "WORDPRESS_SECURE_AUTH_SALT",
+      "description": "A secret string used to configure Wordpress Authentication Unique Keys and Salts",
+      "generate": "expression",
+      "from": "[a-zA-Z0-9]{40}"
+    },
+    {
+      "name": "WORDPRESS_LOGGED_IN_SALT",
+      "description": "A secret string used to configure Wordpress Authentication Unique Keys and Salts",
+      "generate": "expression",
+      "from": "[a-zA-Z0-9]{40}"
+    },
+    {
+      "name": "WORDPRESS_NONCE_SALT",
+      "description": "A secret string used to configure Wordpress Authentication Unique Keys and Salts",
+      "generate": "expression",
+      "from": "[a-zA-Z0-9]{40}"
+    },
+    {
+      "name": "WORDPRESS_DATABASE_TABLE_PREFIX",
+      "description": "You can have multiple installations in one database if you give eacha unique prefix. Only numbers, letters, and underscores please!",
+      "value": "wp_"
+    },
+    {
+      "name": "OPCACHE_REVALIDATE_FREQ",
+      "description": "The How often to check script timestamps for updates, in seconds. 0 will result in OPcache checking for updates on every request.",
+      "value": "2"
+    }
+  ]
+}
